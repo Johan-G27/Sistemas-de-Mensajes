@@ -1,0 +1,121 @@
+services:
+  # Servicio de RabbitMQ
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: always
+
+  # Servicio de PostgreSQL
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: weather_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  # Servicio de Ofelia para la programación de tareas
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia
+    restart: always
+    command: daemon --docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Permitir acceso a Docker socket
+      - .:/app  # Monta el directorio actual donde está el docker-compose.yml
+    labels:
+
+      ofelia.job-run.prod.schedule: "@every 5s"  # Ejecutar el productor cada 5 segundos
+      ofelia.job-run.prod.container: "producer"    
+
+      ofelia.job-run.cons.schedule: "@every 5s"  # Ejecutar el consumidor cada 5 segundos
+      ofelia.job-run.cons.container: "consumer"
+
+
+  
+  # Servicio del Productor
+  producer:
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    container_name: producer
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+    command: python /app/producer.py &&  tail -f /dev/null
+
+  # Servicio del Consumidor
+  consumer:
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    container_name: consumer
+    depends_on:
+      - rabbitmq
+      - postgres
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+    command: python /app/consumer.py &&  tail -f /dev/null
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter
+    ports:
+      - "15692:15692"
+    environment:
+      - RABBIT_URL=http://admin:admin@rabbitmq:15672
+    depends_on:
+      - rabbitmq
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres:password@postgres:5432/weather_db?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+  
+volumes:
+  rabbitmq_data:
+  postgres_data: 
+  grafana_data:
+
+networks:
+  default:
+    name: monitoring_network
+    driver: bridge
