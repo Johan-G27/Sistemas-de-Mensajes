@@ -1,6 +1,6 @@
 # Proyecto Meteorología - Sistema de Microservicios con Monitoreo
 
-#Por: Johan Grimaldos; Miguel Baranoa; Jorge Mercado
+Por: Johan Grimaldos; Miguel Baranoa; Jorge Mercado
 
 Este proyecto implementa un sistema basado en microservicios para la adquisición, procesamiento y almacenamiento de datos meteorológicos en tiempo real. Utiliza tecnologías como RabbitMQ para la mensajería, PostgreSQL para la base de datos, Prometheus y Grafana para monitoreo, y Ofelia para la orquestación de tareas.
 
